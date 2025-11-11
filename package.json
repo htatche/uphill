@@ -1,0 +1,19 @@
+{
+  "name": "human_uphill",
+  "version": "1.0.0",
+  "description": "A path generator for mountain athletes",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  }
+}
