@@ -66,6 +66,26 @@ export class MapUtils {
 
     polygon.addTo(this.map);
   }
+  private drawWays(nodes: OSMNode[], ways: OSMWay[]) {
+    // Create k->v store
+    //   node ID -> node object
+    const nodeMap: Record<number, L.LatLngExpression> = {};
+    nodes.forEach((n) => (nodeMap[n.id] = [n.lat, n.lon]));
+
+    const colors: string[] = ["red", "blue", "purple", "orange", "green"];
+
+    ways.forEach((way, idx) => {
+      const coords = way.nodes.map((id) => nodeMap[id]).filter(Boolean);
+
+      if (coords.length > 1) {
+        L.polyline(coords, {
+          color: colors[idx % colors.length],
+          weight: 4,
+          opacity: 0.8,
+        }).addTo(this.map);
+      }
+    });
+  }
 
   private async handleMapClick(e: L.LeafletMouseEvent): Promise<void> {
     const { lat, lng } = e.latlng;
@@ -91,6 +111,7 @@ export class MapUtils {
       const { nodes, ways } = await fetchBoundingBoxNetwork(bounding_box);
 
       this.drawBoundingBox(bounding_box);
+      this.drawWays(nodes, ways);
 
       console.log(nodes);
       console.log(ways);
