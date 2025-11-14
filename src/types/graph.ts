@@ -1,11 +1,45 @@
-export interface Coordinate {
+// A node represents a point of interest or trail intersection
+export interface GraphNode {
+  id: string;
   lat: number;
-  lng: number;
-  marker: L.Marker;
+  lon: number;
+  elevation: number; // meters above sea level
+  name?: string; // optional name for landmarks
+  type: 'intersection' | 'trailhead' | 'peak' | 'waypoint';
 }
-export interface BoundingBox {
-  north: number;
-  east: number;
-  south: number;
-  west: number;
+
+// Trail surface types that affect running difficulty
+export type TrailSurface = 'paved' | 'dirt' | 'gravel' | 'rock' | 'sand' | 'mud';
+
+// An edge represents a trail segment connecting two nodes
+export interface GraphEdge {
+  id: string;
+  from: string;
+  to: string;
+  weight: number; // Primary weight for pathfinding
+
+  // Physical properties
+  distance: number; // meters
+  elevationGain: number; // meters (positive = uphill)
+  elevationLoss?: number; // meters (positive = downhill)
+
+  // Trail characteristics
+  surface?: TrailSurface;
+  difficulty: 1 | 2 | 3 | 4 | 5; // 1=easy, 5=very difficult
+
+  // Calculated weights for pathfinding algorithms
+  weights?: {
+    distance: number;
+    elevation: number;
+    difficulty: number;
+    time: number; // estimated time in minutes
+  };
+}
+
+// The complete graph structure
+export interface TrailGraph {
+  nodes: Map<string, GraphNode>;
+  edges: Map<string, GraphEdge>;
+  // Adjacency list for efficient pathfinding: nodeId -> connected edges
+  adjacencyList: Map<string, string[]>;
 }

@@ -1,6 +1,8 @@
 import L from "leaflet";
 import { buildNetworkQuery, fetchBoundingBoxNetwork } from "./api";
-import type { Coordinate, BoundingBox } from "./types/graph";
+import type { Coordinate, BoundingBox } from "./types/map";
+import type { OSMNode, OSMWay, OverpassResponse } from "@/types/overpass";
+import * as Graph from "./graph";
 
 export const MAP_PROVIDER = {
   name: "OpenTopoMap",
@@ -66,6 +68,11 @@ export class MapUtils {
 
     polygon.addTo(this.map);
   }
+
+  private displayNodes() {
+    // TODO
+  }
+
   private drawWays(nodes: OSMNode[], ways: OSMWay[]) {
     // Create k->v store
     //   node ID -> node object
@@ -111,6 +118,7 @@ export class MapUtils {
       const { nodes, ways } = await fetchBoundingBoxNetwork(bounding_box);
 
       this.drawBoundingBox(bounding_box);
+      Graph.buildGraph(nodes, ways);
       this.drawWays(nodes, ways);
 
       console.log(nodes);
