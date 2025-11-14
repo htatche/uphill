@@ -47,6 +47,26 @@ export class MapUtils {
     };
   }
 
+  private drawBoundingBox(bounding_box: BoundingBox): void {
+    const { south, west, north, east } = bounding_box;
+
+    const corners: L.LatLngExpression[] = [
+      [south, west], // SW
+      [south, east], // SE
+      [north, east], // NE
+      [north, west], // NW
+      [south, west], // close polygon
+    ];
+
+    const polygon = L.polygon(corners, {
+      color: "red",
+      weight: 2,
+      fill: false,
+    });
+
+    polygon.addTo(this.map);
+  }
+
   private async handleMapClick(e: L.LeafletMouseEvent): Promise<void> {
     const { lat, lng } = e.latlng;
     let bounding_box: BoundingBox;
@@ -69,6 +89,8 @@ export class MapUtils {
       console.log(`Generated bounding box query: ${query}`);
 
       const { nodes, ways } = await fetchBoundingBoxNetwork(bounding_box);
+
+      this.drawBoundingBox(bounding_box);
 
       console.log(nodes);
       console.log(ways);
