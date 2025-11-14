@@ -43,3 +43,10 @@ export interface TrailGraph {
   // Adjacency list for efficient pathfinding: nodeId -> connected edges
   adjacencyList: Map<string, string[]>;
 }
+
+// Dijkstra
+export interface PriorityQueueItem {
+  nodeId: string;
+  cost: number;
+  path: string[];
+}

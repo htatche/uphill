@@ -2,6 +2,7 @@ import L from "leaflet";
 import { buildNetworkQuery, fetchBoundingBoxNetwork } from "./api";
 import type { Coordinate, BoundingBox } from "./types/map";
 import type { OSMNode, OSMWay, OverpassResponse } from "@/types/overpass";
+import * as GraphTypes from "./types/graph";
 import * as Graph from "./graph";
 
 export const MAP_PROVIDER = {
@@ -15,6 +16,11 @@ export class MapUtils {
   public map: L.Map;
   private currentLayer: L.TileLayer;
   private coordinates: Coordinate[] = [];
+  private graph: GraphTypes.TrailGraph = {
+    nodes: new Map(),
+    edges: new Map(),
+    adjacencyList: new Map(),
+  };
 
   constructor() {
     this.map = L.map("map").setView([42.5, 1.6], 13);
@@ -38,8 +44,8 @@ export class MapUtils {
     coordinate: Coordinate,
     coordinate2: Coordinate
   ): BoundingBox {
-    // const padding: number = 0.01; // 1 km
-    const padding: number = 0; // 1 km
+    const padding: number = 0.05; // 1 km
+    // const padding: number = 0; // 1 km
 
     return {
       south: Math.min(coordinate.lat, coordinate2.lat) - padding,
@@ -79,7 +85,7 @@ export class MapUtils {
     const nodeMap: Record<number, L.LatLngExpression> = {};
     nodes.forEach((n) => (nodeMap[n.id] = [n.lat, n.lon]));
 
-    const colors: string[] = ["red", "blue", "purple", "orange", "green"];
+    const colors: string[] = ["pink", "blue", "purple", "orange", "green"];
 
     ways.forEach((way, idx) => {
       const coords = way.nodes.map((id) => nodeMap[id]).filter(Boolean);
@@ -92,6 +98,15 @@ export class MapUtils {
         }).addTo(this.map);
       }
     });
+  }
+
+  private drawShortestPath(nodes: string[]): void {
+    const pathCoords = nodes.map((id) => {
+      const node = this.graph.nodes.get(id)!;
+      return [node.lat, node.lon] as L.LatLngExpression;
+    });
+
+    L.polyline(pathCoords, { color: "red", weight: 4 }).addTo(this.map);
   }
 
   private async handleMapClick(e: L.LeafletMouseEvent): Promise<void> {
@@ -118,11 +133,27 @@ export class MapUtils {
       const { nodes, ways } = await fetchBoundingBoxNetwork(bounding_box);
 
       this.drawBoundingBox(bounding_box);
-      Graph.buildGraph(nodes, ways);
+      this.graph = Graph.buildGraph(nodes, ways);
       this.drawWays(nodes, ways);
 
-      console.log(nodes);
-      console.log(ways);
+      const startNodeId: string = Graph.findNearestNode(first, this.graph);
+      const endNodeId: string = Graph.findNearestNode(second, this.graph);
+      const shortestPath: string[] | null = Graph.calculateShortestPath(
+        this.graph,
+        startNodeId,
+        endNodeId
+      );
+
+      if (shortestPath && shortestPath.length > 0) {
+        const pathCoords = shortestPath.map((id) => {
+          const node = this.graph.nodes.get(id)!;
+          return [node.lat, node.lon] as L.LatLngExpression;
+        });
+
+        L.polyline(pathCoords, { color: "red", weight: 4 }).addTo(this.map);
+      } else {
+        console.log("No shortest path found");
+      }
     }
   }
 }

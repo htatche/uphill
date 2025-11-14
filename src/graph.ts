@@ -20,6 +20,73 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
   return R * c;
 }
 
+export function findNearestNode(
+  coordinate: Coordinate,
+  graph: GraphTypes.TrailGraph
+): string {
+  let nearestId: string | null = null;
+  let minDist = Infinity;
+
+  graph.nodes.forEach((node) => {
+    const dist = calculateDistance(
+      coordinate.lat,
+      coordinate.lng,
+      node.lat,
+      node.lon
+    );
+
+    if (dist < minDist) {
+      minDist = dist;
+      nearestId = node.id;
+    }
+  });
+
+  if (!nearestId) throw new Error("No nodes in graph");
+
+  return nearestId;
+}
+
+// Uses Dijkstra to calculate shortest path between two nodes
+export function calculateShortestPath(
+  graph: GraphTypes.TrailGraph,
+  startNodeId: string,
+  endNodeId: string
+): string[] | null {
+  const visited = new Set<string>();
+  const pq: GraphTypes.PriorityQueueItem[] = [
+    { nodeId: startNodeId, cost: 0, path: [startNodeId] },
+  ];
+
+  while (pq.length > 0) {
+    // Get the node with smallest cost
+    pq.sort((a, b) => a.cost - b.cost);
+
+    const current = pq.shift()!;
+
+    if (current.nodeId === endNodeId) return current.path;
+    if (visited.has(current.nodeId)) continue;
+
+    visited.add(current.nodeId);
+
+    const neighbors = graph.adjacencyList.get(current.nodeId) ?? [];
+
+    neighbors.forEach((neighborId) => {
+      if (visited.has(neighborId)) return;
+
+      const edgeId = `${current.nodeId}-${neighborId}`;
+      const edge = graph.edges.get(edgeId)!;
+
+      pq.push({
+        nodeId: neighborId,
+        cost: current.cost + edge.weight,
+        path: [...current.path, neighborId],
+      });
+    });
+  }
+
+  return null; // no path found
+}
+
 export function buildGraph(osmNodes: OSMNode[], osmWays: OSMWay[]): GraphTypes.TrailGraph {
   const graph: GraphTypes.TrailGraph = {
     nodes: new Map(),
