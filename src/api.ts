@@ -1,5 +1,5 @@
-import type { BoundingBox } from "@/types/map";
-import type { OSMNode, OSMWay, OverpassResponse } from "@/types/overpass";
+import type { BoundingBox } from "@/types/map_types";
+import type { OSMNode, OSMWay, OverpassResponse } from "@/types/osm_types";
 
 const OVERPASS_API_URL = "https://overpass-api.de/api/interpreter";
 

@@ -36,14 +36,6 @@ export interface GraphEdge {
   };
 }
 
-// The complete graph structure
-export interface TrailGraph {
-  nodes: Map<string, GraphNode>;
-  edges: Map<string, GraphEdge>;
-  // Adjacency list for efficient pathfinding: nodeId -> connected edges
-  adjacencyList: Map<string, string[]>;
-}
-
 // Dijkstra
 export interface PriorityQueueItem {
   nodeId: string;

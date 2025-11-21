@@ -1,9 +1,8 @@
 import L from "leaflet";
+import type { Coordinate, BoundingBox } from "./types/map_types";
+import type { OSMNode, OSMWay } from "@/types/osm_types";
 import { buildNetworkQuery, fetchBoundingBoxNetwork } from "./api";
-import type { Coordinate, BoundingBox } from "./types/map";
-import type { OSMNode, OSMWay, OverpassResponse } from "@/types/overpass";
-import * as GraphTypes from "./types/graph";
-import * as Graph from "./graph";
+import { Graph } from "./graph";
 
 export const MAP_PROVIDER = {
   name: "OpenTopoMap",
@@ -16,7 +15,7 @@ export class MapUtils {
   public map: L.Map;
   private currentLayer: L.TileLayer;
   private coordinates: Coordinate[] = [];
-  private graph: GraphTypes.TrailGraph = {
+  private graph: Graph = {
     nodes: new Map(),
     edges: new Map(),
     adjacencyList: new Map(),
@@ -133,13 +132,13 @@ export class MapUtils {
       const { nodes, ways } = await fetchBoundingBoxNetwork(bounding_box);
 
       this.drawBoundingBox(bounding_box);
-      this.graph = Graph.buildGraph(nodes, ways);
+      this.graph = new Graph();
+      this.graph.build(nodes, ways);
       this.drawWays(nodes, ways);
 
-      const startNodeId: string = Graph.findNearestNode(first, this.graph);
-      const endNodeId: string = Graph.findNearestNode(second, this.graph);
-      const shortestPath: string[] | null = Graph.calculateShortestPath(
-        this.graph,
+      const startNodeId: string = this.graph.findNearestNode(first);
+      const endNodeId: string = this.graph.findNearestNode(second);
+      const shortestPath: string[] | null = this.graph.calculateShortestPath(
         startNodeId,
         endNodeId
       );
