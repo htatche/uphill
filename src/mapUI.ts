@@ -15,9 +15,10 @@ export class MapUI {
     public map: L.Map;
     private currentLayer: L.TileLayer;
     private coordinates: Coordinate[] = [];
-    private currentBoundingBoxPolygon?: Polygon;
-    private currentPathNodes: String[] = [];
+    private currentBoundingBoxPolygon?: Polygon | undefined;
     private currentPathCoordinates: L.LatLngExpression[] = [];
+    private mode: 'draw' | 'auto' = 'draw';
+    private abortController = new AbortController();
 
     constructor() {
         this.map = L.map("map").setView([42.5, 1.6], 13);
@@ -27,6 +28,7 @@ export class MapUI {
         });
 
         this.initializeMap();
+        this.initializeModeSelector();
     }
 
     private initializeMap(): void {
@@ -35,6 +37,32 @@ export class MapUI {
         this.map.on("click", (e: L.LeafletMouseEvent) => {
             this.handleMapClick(e);
         });
+    }
+
+    private initializeModeSelector(): void {
+        const radios = document.querySelectorAll('input[name="mode"]');
+
+        radios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const target = e.target as HTMLInputElement;
+
+                this.mode = target.value as 'draw' | 'auto';
+
+                this.resetMap();
+            }, {signal: this.abortController.signal});
+        });
+    }
+
+    private resetMap(): void {
+        this.map.eachLayer((layer) => {
+            if (layer !== this.currentLayer) {
+                this.map.removeLayer(layer);
+            }
+        });
+
+        this.coordinates = [];
+        this.currentBoundingBoxPolygon = undefined;
+        this.currentPathCoordinates = [];
     }
 
     private createBoundingBox(
@@ -92,17 +120,6 @@ export class MapUI {
         });
     }
 
-    private addMarker(latLng: LatLng): void {
-        console.log(`Clicked at: ${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`);
-
-        this.coordinates.push({
-            lat: latLng.lat,
-            lng: latLng.lng
-        });
-
-        L.marker(latLng).addTo(this.map);
-    }
-
     private async exploreBoundingBox(coordFrom: Coordinate, coordTo: Coordinate): Promise<{
         nodes: OSMNode[],
         ways: OSMWay[]
@@ -132,13 +149,36 @@ export class MapUI {
         }
     }
 
-    private async handleMapClick(e: L.LeafletMouseEvent): Promise<void> {
-        this.addMarker(e.latlng);
+    private addMarker(latLng: LatLng): void {
+        console.log(`Clicked at: ${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`);
+
+        this.coordinates.push({
+            lat: latLng.lat,
+            lng: latLng.lng
+        });
+
+        L.marker(latLng).addTo(this.map);
+    }
+
+    private async addNextMarker(latLng: LatLng): Promise<void> {
+        this.addMarker(latLng);
 
         const [coordFrom, coordTo] = this.coordinates.slice(-2);
 
         if (coordFrom && coordTo) {
             await this.traceShortestPath(coordFrom, coordTo);
         }
+    }
+
+    private async handleMapClick(e: L.LeafletMouseEvent): Promise<void> {
+        if (this.mode === 'draw') {
+            await this.addNextMarker(e.latlng);
+        } else {
+
+        }
+    }
+
+    public destroy() {
+        this.abortController.abort();
     }
 }
