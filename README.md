@@ -1,9 +1,16 @@
-# Technical architecture
+# Uphill Trail Explorer
 
-## Code path
+## Description
+
+Explore trail networks finding the shortest path between coordinates.
+
+## How To
 
 1. Place waypoint
 2. Place second waypoint
-4. Pull data from Overpass within a bound box that spans the two waypoints
-5. Create a Graph with edges/nodes returned
-6. Apply path finding algorithm
+3. Done!
+
+# Technical details
+
+- The map is provided by OpenTopoMap and the trails network by Overpass
+- Dikjstra is used in order to find the shortest path between the two waypoints
