@@ -1,4 +1,4 @@
-import L, {LatLng} from "leaflet";
+import L, {LatLng, Polygon} from "leaflet";
 import type {Coordinate, BoundingBox} from "@/types/map_types";
 import type {OSMNode, OSMWay} from "@/types/osm_types";
 import {fetchBoundingBoxNetwork} from "./api";
@@ -15,6 +15,9 @@ export class MapUI {
     public map: L.Map;
     private currentLayer: L.TileLayer;
     private coordinates: Coordinate[] = [];
+    private currentBoundingBoxPolygon?: Polygon;
+    private currentPathNodes: String[] = [];
+    private currentPathCoordinates: L.LatLngExpression[] = [];
 
     constructor() {
         this.map = L.map("map").setView([42.5, 1.6], 13);
@@ -51,7 +54,6 @@ export class MapUI {
 
     private drawBoundingBox(bounding_box: BoundingBox): void {
         const {south, west, north, east} = bounding_box;
-
         const corners: L.LatLngExpression[] = [
             [south, west], // SW
             [south, east], // SE
@@ -59,14 +61,14 @@ export class MapUI {
             [north, west], // NW
             [south, west], // close polygon
         ];
-
         const polygon = L.polygon(corners, {
             color: "red",
             weight: 2,
             fill: false,
         });
 
-        polygon.addTo(this.map);
+        this.currentBoundingBoxPolygon?.remove();
+        this.currentBoundingBoxPolygon = polygon.addTo(this.map);
     }
 
     private drawPaths(nodes: OSMNode[], ways: OSMWay[]) {
@@ -121,10 +123,12 @@ export class MapUI {
         graph.build(nodes, ways);
 
         const [nodeFrom, nodeTo]: String[] = graph.translateCoordsToNodes(coordFrom, coordTo);
-        const pathCoordinates: L.LatLngExpression[] | null = graph.findShortestPath(nodeFrom, nodeTo);
+        const pathCoordinates = graph.findShortestPath(nodeFrom, nodeTo);
 
-        if (pathCoordinates !== null) {
-            L.polyline(pathCoordinates, {color: "red", weight: 4}).addTo(this.map);
+        if (pathCoordinates) {
+            this.currentPathCoordinates = [...(this.currentPathCoordinates), ...pathCoordinates];
+
+            L.polyline(this.currentPathCoordinates, {color: "red", weight: 4}).addTo(this.map);
         }
     }
 
