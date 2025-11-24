@@ -8,6 +8,7 @@ export async function fetchBoundingBoxNetwork(
 ): Promise<{ nodes: OSMNode[]; ways: OSMWay[] }> {
   const query = buildNetworkQuery(bounding_box);
 
+  console.log(`Generated Overpass query: ${query}`);
   console.log("Fetching trail network in bounding box:", bounding_box);
 
   try {
@@ -37,7 +38,7 @@ export async function fetchBoundingBoxNetwork(
   }
 }
 
-export function buildNetworkQuery(bounding_box: BoundingBox): string {
+function buildNetworkQuery(bounding_box: BoundingBox): string {
   const coords = [
     bounding_box.south,
     bounding_box.west,

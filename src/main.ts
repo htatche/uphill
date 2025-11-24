@@ -1,5 +1,5 @@
-import { MapUtils } from "./map_utils";
+import { MapUI } from "./mapUI";
 
 document.addEventListener("DOMContentLoaded", () => {
-  let map_utils: MapUtils = new MapUtils();
+  let map_utils: MapUI = new MapUI();
 });

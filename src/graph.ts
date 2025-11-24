@@ -1,6 +1,7 @@
 import type {Coordinate} from "@/types/map_types";
 import type {OSMNode, OSMWay} from "@/types/osm_types";
 import type {GraphEdge, GraphNode, PriorityQueueItem} from "@/types/graph_types";
+import L from "leaflet";
 
 export class Graph {
     public nodes = new Map<string, GraphNode>();
@@ -62,13 +63,54 @@ export class Graph {
     }
 
     /**
+     * Translates the given coordinates to their corresponding notes (node identifiers).
+     *
+     * @param {Coordinate} coordFrom - The starting coordinate to be translated.
+     * @param {Coordinate} coordTo - The ending coordinate to be translated.
+     * @return {String[]} An array containing the identifiers of the nodes corresponding to the coordinates.
+     */
+    public translateCoordsToNodes(coordFrom: Coordinate, coordTo: Coordinate): String[] {
+        const startNodeId: string = this.findNearestNode(coordFrom);
+        const endNodeId: string = this.findNearestNode(coordTo);
+
+        return [startNodeId, endNodeId];
+    }
+
+    /**
+     * Calculates the shortest path between two nodes in a graph and returns the corresponding coordinates.
+     *
+     * @param {string} nodeFrom - The identifier of the starting node.
+     * @param {string} nodeTo - The identifier of the destination node.
+     * @return {Array<L.LatLngExpression> | null} An array of coordinates representing the shortest path, or null if no path is found.
+     */
+    public findShortestPath(nodeFrom: string, nodeTo: string) {
+        const shortestPath: string[] | null = this.calculateShortestPath(
+            nodeFrom,
+            nodeTo
+        );
+
+        if (shortestPath && shortestPath.length > 0) {
+            const pathCoords = shortestPath.map((id) => {
+                const node = this.nodes.get(id)!;
+                return [node.lat, node.lon] as L.LatLngExpression;
+            });
+
+            return pathCoords;
+        } else {
+            console.log("No shortest path found");
+
+            return null;
+        }
+    }
+
+    /**
      * Calculates the shortest path between two nodes in a graph using Dijkstra's algorithm.
      *
      * @param {string} startNodeId - The ID of the starting node.
      * @param {string} endNodeId - The ID of the target node.
      * @return {string[] | null} The shortest path as an array of node IDs if a path is found, or null if no path exists.
      */
-    public calculateShortestPath(startNodeId: string, endNodeId: string): string[] | null {
+    private calculateShortestPath(startNodeId: string, endNodeId: string): string[] | null {
         const visited = new Set<string>();
         const pq: PriorityQueueItem[] = [
             {nodeId: startNodeId, cost: 0, path: [startNodeId]},
