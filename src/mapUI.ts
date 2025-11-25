@@ -19,6 +19,7 @@ export class MapUI {
     private currentPathCoordinates: L.LatLngExpression[] = [];
     private mode: 'draw' | 'auto' = 'draw';
     private abortController = new AbortController();
+    private cyclePolylines: Map<number, L.Polyline> = new Map();
 
     constructor() {
         this.map = L.map("map").setView([42.5, 1.6], 13);
@@ -139,7 +140,7 @@ export class MapUI {
 
         graph.build(nodes, ways);
 
-        const [nodeFrom, nodeTo]: String[] = graph.translateCoordsToNodes(coordFrom, coordTo);
+        const [nodeFrom, nodeTo]: string[] = graph.translateCoordsToNodes(coordFrom, coordTo);
         const pathCoordinates = graph.findShortestPath(nodeFrom, nodeTo);
 
         if (pathCoordinates) {
@@ -147,6 +148,102 @@ export class MapUI {
 
             L.polyline(this.currentPathCoordinates, {color: "red", weight: 4}).addTo(this.map);
         }
+    }
+
+    private async traceLoopPath(coord: Coordinate): Promise<void> {
+        const bounding_box: BoundingBox = this.createBoundingBox(coord, coord);
+        const {nodes, ways} = await fetchBoundingBoxNetwork(bounding_box);
+        const graph = new Graph();
+        
+        graph.build(nodes, ways);
+
+        const startNodeId = graph.findNearestNode(coord);
+        const cyclesResult = graph.findCycles(startNodeId);
+        const cycles = cyclesResult.cycles;
+
+        if (cycles && cycles.length > 0) {
+            this.drawCyclesOnMap(cycles);
+            this.renderCyclesList(cycles);
+        }
+    }
+
+    // Helper to assign colors consistently per cycle index
+    private getCycleColor(index: number): string {
+        const cycleColors: string[] = [
+            "red", "blue", "green", "orange", "purple", "darkred", "darkblue", "darkgreen",
+            "darkorange", "magenta", "cyan", "lime", "pink", "brown", "navy"
+        ];
+
+        return cycleColors[index % cycleColors.length];
+    }
+
+    // Draw cycles on the map and keep references for interactivity
+    private drawCyclesOnMap(cycles: L.LatLngExpression[][]): void {
+        // Clear previous cycles
+        this.cyclePolylines.forEach(polyline => polyline.remove());
+        this.cyclePolylines.clear();
+
+        cycles.forEach((cycle, index) => {
+            const color = this.getCycleColor(index);
+            const polyline = L.polyline(cycle, {
+                color: color,
+                weight: 6,
+                opacity: 0.9,
+            }).addTo(this.map);
+
+            this.cyclePolylines.set(index, polyline);
+        });
+    }
+
+    // Build the UI list of cycles and wire hover interactions
+    private renderCyclesList(cycles: L.LatLngExpression[][]): void {
+        const cyclesContainer = document.getElementById('cycles-container');
+        const cyclesList = document.getElementById('cycles-list');
+
+        if (cyclesContainer) {
+            cyclesContainer.innerHTML = '';
+        }
+
+        if (cycles && cycles.length > 0 && cyclesContainer) {
+            cycles.forEach((cycle, index) => {
+                const color = this.getCycleColor(index);
+                const distance = this.calculateCycleDistance(cycle);
+
+                const cycleItem = document.createElement('div');
+                cycleItem.className = 'cycle-item';
+                cycleItem.innerHTML = `
+                            <span class="cycle-color-box" style="background-color: ${color};"></span>
+                            <span>Cycle ${index + 1} (${distance.toFixed(2)} km)</span>
+                        `;
+
+                cycleItem.addEventListener('mouseenter', () => {
+                    const polyline = this.cyclePolylines.get(index);
+                    if (polyline) polyline.setStyle({color: 'red', weight: 10, opacity: 1});
+                });
+
+                cycleItem.addEventListener('mouseleave', () => {
+                    const polyline = this.cyclePolylines.get(index);
+                    if (polyline) polyline.setStyle({color: this.getCycleColor(index), weight: 6, opacity: 0.9});
+                });
+
+                cyclesContainer.appendChild(cycleItem);
+            });
+
+            if (cyclesList) cyclesList.classList.add('visible');
+        }
+    }
+
+    private calculateCycleDistance(cycle: L.LatLngExpression[]): number {
+        if (cycle.length < 2) return 0;
+
+        const totalMeters = cycle.slice(1).reduce((sum, to, idx) => {
+            const from = cycle[idx] as [number, number];
+            const [lat1, lon1] = from;
+            const [lat2, lon2] = to as [number, number];
+            return sum + Graph.calculateDistance(lat1, lon1, lat2, lon2);
+        }, 0);
+
+        return totalMeters / 1000; // Convert to km
     }
 
     private addMarker(latLng: LatLng): void {
@@ -174,7 +271,8 @@ export class MapUI {
         if (this.mode === 'draw') {
             await this.addNextMarker(e.latlng);
         } else {
-
+            this.addMarker(e.latlng);
+            await this.traceLoopPath({lat: e.latlng.lat, lng: e.latlng.lng});
         }
     }
 

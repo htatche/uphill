@@ -52,10 +52,68 @@
         .mode-menu label:last-child {
             margin-bottom: 0;
         }
+
+        #cycles-list {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            max-height: 80vh;
+            overflow-y: auto;
+            min-width: 200px;
+            display: none;
+        }
+
+        #cycles-list.visible {
+            display: block;
+        }
+
+        #cycles-list h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+        }
+
+        .cycle-item {
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .cycle-item:hover {
+            background-color: #f0f0f0;
+            border-color: red;
+            transform: scale(1.02);
+        }
+
+        .cycle-color-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 8px;
+            vertical-align: middle;
+            border: 1px solid #999;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
+    <div id="cycles-list">
+        <h3>Found Cycles</h3>
+        <div id="cycles-container"></div>
+    </div>
 
     <div class="mode-menu">
         <label>
