@@ -165,7 +165,7 @@ export class MapUI {
         if (cycles && cycles.length > 0) {
             const sortedCycles = this.sortCyclesByDistance(cycles);
             this.lastCycles = sortedCycles;
-            this.drawCyclesOnMap(sortedCycles);
+            // Do not draw cycles automatically; only render the list for user selection
             this.renderCyclesList(sortedCycles);
         }
     }
@@ -198,7 +198,7 @@ export class MapUI {
         });
     }
 
-    // Build the UI list of cycles and wire hover interactions
+    // Build the UI list of cycles; draw only when user clicks an item
     private renderCyclesList(cycles: L.LatLngExpression[][]): void {
         const cyclesContainer = document.getElementById('cycles-container');
         const cyclesList = document.getElementById('cycles-list');
@@ -209,6 +209,10 @@ export class MapUI {
         }
 
         if (cycles && cycles.length > 0 && cyclesContainer) {
+            // Clear any previously drawn cycle polylines from the map
+            this.cyclePolylines.forEach(polyline => polyline.remove());
+            this.cyclePolylines.clear();
+
             cycles.forEach((cycle, index) => {
                 const color = this.getCycleColor(index);
                 const distance = this.calculateCycleDistance(cycle);
@@ -220,18 +224,21 @@ export class MapUI {
                             <span>Cycle ${index + 1} (${distance.toFixed(2)} km)</span>
                         `;
 
-                cycleItem.addEventListener('mouseenter', () => {
-                    const polyline = this.cyclePolylines.get(index);
-                    if (polyline) polyline.setStyle({color: 'red', weight: 10, opacity: 1});
-                });
-
-                cycleItem.addEventListener('mouseleave', () => {
-                    const polyline = this.cyclePolylines.get(index);
-                    if (polyline) polyline.setStyle({color: this.getCycleColor(index), weight: 6, opacity: 0.9});
-                });
-
                 // On click: show diff with next cycle in list (wrap-around)
                 cycleItem.addEventListener('click', () => {
+                    // Clear any existing displayed cycle(s)
+                    this.cyclePolylines.forEach(polyline => polyline.remove());
+                    this.cyclePolylines.clear();
+
+                    // Draw only the selected cycle in red
+                    const selected = cycles[index];
+                    const polyline = L.polyline(selected, {
+                        color: 'red',
+                        weight: 6,
+                        opacity: 0.9,
+                    }).addTo(this.map);
+                    this.cyclePolylines.set(index, polyline);
+
                     if (!this.lastCycles || this.lastCycles.length === 0 || !diffPanel) return;
                     const a = this.lastCycles[index];
                     const b = this.lastCycles[(index + 1) % this.lastCycles.length];
