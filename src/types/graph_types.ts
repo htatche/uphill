@@ -18,6 +18,9 @@ export interface GraphEdge {
   to: string;
   weight: number; // Primary weight for pathfinding
 
+  // OSM way identifier this edge belongs to (same on both directions)
+  wayId?: number;
+
   // Physical properties
   distance: number; // meters
   elevationGain: number; // meters (positive = uphill)

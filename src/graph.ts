@@ -103,13 +103,14 @@ export class Graph {
         }
     }
 
-    private addEdge(fromId: string, toId: string, distance: number): void {
+    private addEdge(fromId: string, toId: string, distance: number, wayId?: number): void {
         const edgeId = `${fromId}-${toId}`;
         const edge: GraphEdge = {
             id: edgeId,
             from: fromId,
             to: toId,
             weight: distance,
+            wayId,
             distance,
             elevationGain: 0, // TODO: calculate from elevation data
             difficulty: 1, // Default difficulty
@@ -160,9 +161,9 @@ export class Graph {
                     toNode.lon
                 );
 
-                this.addEdge(fromId, toId, distance);
+                this.addEdge(fromId, toId, distance, way.id);
                 // Create a reverse edge (trails are bidirectional)
-                this.addEdge(toId, fromId, distance);
+                this.addEdge(toId, fromId, distance, way.id);
             }
         });
 
@@ -375,7 +376,10 @@ export class Graph {
 
         console.log(`DFS completed: visited ${traversalOrder.size} nodes, found ${cycles.length} cycles`);
 
-        return {cycles, traversalOrder};
+        // Deduplicate cycles that are the same up to rotation and direction
+        const uniqueCycles = this.removeDuplicateCycles(cycles);
+
+        return {cycles: uniqueCycles, traversalOrder};
     }
 
     /**
@@ -411,5 +415,160 @@ export class Graph {
         const cycleCoords = cycles.map((cycle) => this.nodeIdsToCoords(cycle));
 
         return {cycles: cycleCoords, traversalOrder};
+    }
+
+    /**
+     * Remove the trailing duplicate of the first element if the cycle is explicitly closed.
+     * Example: [A,B,C,A] -> [A,B,C]
+     */
+    private stripClosingNode<T>(cycle: T[]): T[] {
+        if (cycle.length > 1 && cycle[0] === cycle[cycle.length - 1]) {
+            // Remove the trailing duplicate that explicitly closes the cycle
+            return cycle.slice(0, cycle.length - 1);
+        }
+        return cycle.slice();
+    }
+
+    /**
+     * Returns the wayId of the directed edge (u->v) if it exists.
+     */
+    private edgeWayId(u: string, v: string): number | undefined {
+        const edge = this.edges.get(`${u}-${v}`);
+        return edge?.wayId;
+    }
+
+    /**
+     * Simplify a circular path by removing intermediate nodes that lie on the same OSM way
+     * between their neighbors. For a node X with neighbors P (prev) and N (next), if way(P->X)
+     * and way(X->N) exist and have the same wayId, X is removed. This collapses sequences like
+     * C-D-E along the same way into C-E for canonical comparison of near-duplicate trails.
+     *
+     * Accepts either closed ([A,B,C,A]) or open ([A,B,C]) forms and returns an open form.
+     */
+    private simplifyCycleOpen(ids: string[]): string[] {
+        let open = this.stripClosingNode(ids);
+        if (open.length < 3) return open.slice();
+
+        // Iterate until no changes to catch cascaded removals
+        let changed = true;
+        while (changed) {
+            changed = false;
+            if (open.length < 3) break;
+            const keep: boolean[] = new Array(open.length).fill(true);
+            for (let i = 0; i < open.length; i++) {
+                const prev = open[(i - 1 + open.length) % open.length];
+                const curr = open[i];
+                const next = open[(i + 1) % open.length];
+                const w1 = this.edgeWayId(prev, curr);
+                const w2 = this.edgeWayId(curr, next);
+                if (w1 !== undefined && w2 !== undefined && w1 === w2) {
+                    // curr is an intermediate along the same way; mark for removal
+                    keep[i] = false;
+                }
+            }
+            const newOpen = open.filter((_, i) => keep[i]);
+            if (newOpen.length !== open.length) {
+                open = newOpen;
+                changed = true;
+            }
+        }
+        return open;
+    }
+
+    /**
+     * Rotate an array left by k positions.
+     */
+    private rotateLeft<T>(arr: T[], k: number): T[] {
+        const n = arr.length;
+        if (n === 0) return [];
+        const r = ((k % n) + n) % n;
+        return arr.slice(r).concat(arr.slice(0, r));
+    }
+
+    /**
+     * Compute the lexicographically smallest rotation of a string array.
+     * Uses Booth's algorithm in O(n) time to avoid O(n^2) joins/comparisons.
+     */
+    private minRotation(arr: string[]): string[] {
+        const n = arr.length;
+        if (n === 0) return [];
+        if (n === 1) return [arr[0]];
+
+        // Duplicate array to avoid modular arithmetic when comparing rotations
+        const s = arr.concat(arr);
+        let i = 0;      // candidate 1 start
+        let j = 1;      // candidate 2 start
+        let k = 0;      // current offset
+
+        while (i < n && j < n && k < n) {
+            const a = s[i + k];
+            const b = s[j + k];
+            if (a === b) {
+                k++;
+                continue;
+            }
+            if (a > b) {
+                // rotation starting at i is worse; skip past the mismatch
+                i = i + k + 1;
+                if (i === j) i++;
+            } else {
+                // rotation starting at j is worse
+                j = j + k + 1;
+                if (i === j) j++;
+            }
+            k = 0;
+        }
+
+        const start = Math.min(i, j);
+        return s.slice(start, start + n);
+    }
+
+    /**
+     * Canonicalize a cycle (array of node IDs) so that equivalent cycles have the same representation.
+     * - Ignores starting point (rotation invariant)
+     * - Ignores traversal direction (treats reverse as equal)
+     * - Accepts cycles either closed ([A,B,C,A]) or open ([A,B,C]) and returns a closed form.
+     */
+    private canonicalizeCycleIds(ids: string[]): string[] {
+        // Normalize and simplify to "open" form first (no trailing duplicate)
+        const open = this.simplifyCycleOpen(ids);
+        if (open.length === 0) return [];
+        // Compute minimal rotation for forward and reversed, choose lexicographically smallest
+        const fwd = this.minRotation(open);
+        const rev = this.minRotation([...open].reverse());
+        // Compare using default join; a special separator is unnecessary
+        const fwdKey = fwd.join();
+        const revKey = rev.join();
+        const chosen = fwdKey <= revKey ? fwd : rev;
+        // Return in closed form by appending first at end
+        return [...chosen, chosen[0]];
+    }
+
+    /**
+     * Create a stable key for a cycle for deduplication.
+     */
+    private cycleKey(ids: string[]): string {
+        const canon = this.canonicalizeCycleIds(ids);
+        return canon.join("->");
+    }
+
+    private areCyclesEqual(c1: string[], c2: string[]): boolean {
+        return this.cycleKey(c1) === this.cycleKey(c2);
+    }
+
+    private removeDuplicateCycles(cycles: string[][]): string[][] {
+        const seen = new Set<string>();
+        const unique: string[][] = [];
+        for (const c of cycles) {
+            const key = this.cycleKey(c);
+            if (!seen.has(key)) {
+                seen.add(key);
+                // Keep the original, unsimplified cycle for rendering so that
+                // drawn polylines follow all intermediate way nodes. We only
+                // use the canonicalized (simplified) form to build the key.
+                unique.push(c);
+            }
+        }
+        return unique;
     }
 }
