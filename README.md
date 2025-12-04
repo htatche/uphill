@@ -2,15 +2,16 @@
 
 ## Description
 
-Explore trail networks finding the shortest path between coordinates.
+Generate paths from trail networks
 
-## How To
+![screenrecording.gif](screenrecording.gif)
 
-1. Place waypoint
-2. Place second waypoint
-3. Done!
+## Current functionality
 
-# Technical details
+1. Create a path by finding the shortest way between coordinates.
+2. Find loop trails automatically
+
+## Technical details
 
 - The map is provided by OpenTopoMap and the trails network by Overpass
-- Dikjstra is used in order to find the shortest path between the two waypoints
+- DFS and Dikjstra are used to both explore the network and find the shortest path between the two waypoints
