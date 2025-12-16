@@ -71,8 +71,7 @@ export class MapUI {
         coordFrom: Coordinate,
         coordTo: Coordinate
     ): BoundingBox {
-        const padding: number = 0.05; // 1 km
-        // const padding: number = 0; // 1 km
+        const padding: number = 0.1; // 1 km
 
         return {
             south: Math.min(coordFrom.lat, coordTo.lat) - padding,
@@ -155,172 +154,40 @@ export class MapUI {
         const bounding_box: BoundingBox = this.createBoundingBox(coord, coord);
         const {nodes, ways} = await fetchBoundingBoxNetwork(bounding_box);
         const graph = new Graph();
-        
+
+        this.drawBoundingBox(bounding_box);
         graph.build(nodes, ways);
 
         const startNodeId = graph.findNearestNode(coord);
-        const cyclesResult = graph.findCycles(startNodeId);
-        const cycles = cyclesResult.cycles;
 
-        if (cycles && cycles.length > 0) {
-            const sortedCycles = this.sortCyclesByDistance(cycles);
-            this.lastCycles = sortedCycles;
-            // Do not draw cycles automatically; only render the list for user selection
-            this.renderCyclesList(sortedCycles);
-        }
-    }
+        const traversalOrder = depthFirstSearchWithStack(graph.adjacencyList, startNodeId);
 
-    // Helper to assign colors consistently per cycle index
-    private getCycleColor(index: number): string {
-        const cycleColors: string[] = [
-            "red", "blue", "green", "orange", "purple", "darkred", "darkblue", "darkgreen",
-            "darkorange", "magenta", "cyan", "lime", "pink", "brown", "navy"
-        ];
+        console.log(`Finished DFS with Stack`);
 
-        return cycleColors[index % cycleColors.length];
-    }
+        // TODO Display all explored ways as Polylines
+        // const first100: any[] = [];
+        // const iterator = traversalOrder.values();
+        //
+        // for (let i = 0; i < traversalOrder.length; i++) {
+        //     const next = iterator.next();
+        //     if (first100.length == 100 || next.done) break;
+        //     if (next.value) {
+        //         first100.push(next.value);
+        //
+        //     }
+        // }
+        //
+        // const visitedCoords = this.graphNodeIdsToCoords(graph.nodes, first100);
+        //
+        // visitedCoords.forEach((visitedCoord) => {
+        //     this.addMarker(visitedCoord);
+        // })
 
-    // Draw cycles on the map and keep references for interactivity
-    private drawCyclesOnMap(cycles: L.LatLngExpression[][]): void {
-        // Clear previous cycles
-        this.cyclePolylines.forEach(polyline => polyline.remove());
-        this.cyclePolylines.clear();
-
-        cycles.forEach((cycle, index) => {
-            const color = this.getCycleColor(index);
-            const polyline = L.polyline(cycle, {
-                color: color,
-                weight: 6,
-                opacity: 0.9,
-            }).addTo(this.map);
-
-            this.cyclePolylines.set(index, polyline);
-        });
-    }
-
-    // Build the UI list of cycles; draw only when user clicks an item
-    private renderCyclesList(cycles: L.LatLngExpression[][]): void {
-        const cyclesContainer = document.getElementById('cycles-container');
-        const cyclesList = document.getElementById('cycles-list');
-        const diffPanel = document.getElementById('cycle-diff');
-
-        if (cyclesContainer) {
-            cyclesContainer.innerHTML = '';
-        }
-
-        if (cycles && cycles.length > 0 && cyclesContainer) {
-            // Clear any previously drawn cycle polylines from the map
-            this.cyclePolylines.forEach(polyline => polyline.remove());
-            this.cyclePolylines.clear();
-
-            cycles.forEach((cycle, index) => {
-                const color = this.getCycleColor(index);
-                const distance = this.calculateCycleDistance(cycle);
-
-                const cycleItem = document.createElement('div');
-                cycleItem.className = 'cycle-item';
-                cycleItem.innerHTML = `
-                            <span class="cycle-color-box" style="background-color: ${color};"></span>
-                            <span>Cycle ${index + 1} (${distance.toFixed(2)} km)</span>
-                        `;
-
-                // On click: show diff with next cycle in list (wrap-around)
-                cycleItem.addEventListener('click', () => {
-                    // Clear any existing displayed cycle(s)
-                    this.cyclePolylines.forEach(polyline => polyline.remove());
-                    this.cyclePolylines.clear();
-
-                    // Draw only the selected cycle in red
-                    const selected = cycles[index];
-                    const polyline = L.polyline(selected, {
-                        color: 'red',
-                        weight: 6,
-                        opacity: 0.9,
-                    }).addTo(this.map);
-                    this.cyclePolylines.set(index, polyline);
-
-                    if (!this.lastCycles || this.lastCycles.length === 0 || !diffPanel) return;
-                    const a = this.lastCycles[index];
-                    const b = this.lastCycles[(index + 1) % this.lastCycles.length];
-                    const html = this.buildCycleDiffHtml(a, b, index, (index + 1) % this.lastCycles.length);
-                    diffPanel.innerHTML = html;
-                    diffPanel.classList.add('visible');
-                });
-
-                cyclesContainer.appendChild(cycleItem);
-            });
-
-            if (cyclesList) cyclesList.classList.add('visible');
-        }
-    }
-
-    // Convert a LatLngExpression to a compact string for comparison
-    private coordKey(exp: L.LatLngExpression): string {
-        const [lat, lon] = exp as [number, number];
-        return `${lat.toFixed(5)},${lon.toFixed(5)}`;
-    }
-
-    private buildCycleDiffHtml(a: L.LatLngExpression[], b: L.LatLngExpression[], idxA: number, idxB: number): string {
-        const aKeys = a.map(x => this.coordKey(x));
-        const bKeys = b.map(x => this.coordKey(x));
-
-        // index-by-index mismatches (up to min length)
-        const minLen = Math.min(aKeys.length, bKeys.length);
-        const mismatches: {i:number, a?:string, b?:string}[] = [];
-        for (let i = 0; i < minLen; i++) {
-            if (aKeys[i] !== bKeys[i]) {
-                mismatches.push({i, a: aKeys[i], b: bKeys[i]});
-            }
-        }
-        // Unique elements
-        const setA = new Set(aKeys);
-        const setB = new Set(bKeys);
-        const onlyA: string[] = [];
-        const onlyB: string[] = [];
-        setA.forEach(k => { if (!setB.has(k)) onlyA.push(k); });
-        setB.forEach(k => { if (!setA.has(k)) onlyB.push(k); });
-        const commonCount = aKeys.filter(k => setB.has(k)).length;
-
-        const previewLen = 8;
-        const previewA = aKeys.slice(0, previewLen).join(' -> ');
-        const previewB = bKeys.slice(0, previewLen).join(' -> ');
-
-        const mismatchPreview = mismatches.slice(0, 6).map(m => `#${m.i}: <code>${m.a}</code> vs <code>${m.b}</code>`).join('<br/>');
-
-        return `
-            <h4>Traversal diff: Cycle ${idxA + 1} vs Cycle ${idxB + 1}</h4>
-            <div class="diff-section">Lengths: A=${aKeys.length}, B=${bKeys.length} | Common points: ${commonCount}</div>
-            <div class="diff-section">Only in A (${onlyA.length}): ${onlyA.slice(0,6).map(x=>`<code>${x}</code>`).join(', ')}${onlyA.length>6?' …':''}</div>
-            <div class="diff-section">Only in B (${onlyB.length}): ${onlyB.slice(0,6).map(x=>`<code>${x}</code>`).join(', ')}${onlyB.length>6?' …':''}</div>
-            <div class="diff-section">Index mismatches (${mismatches.length}):<br/>${mismatchPreview || '—'}</div>
-            <div class="diff-section">Preview A: <code>${previewA}${aKeys.length>previewLen?' …':''}</code></div>
-            <div class="diff-section">Preview B: <code>${previewB}${bKeys.length>previewLen?' …':''}</code></div>
-        `;
-    }
-
-    private calculateCycleDistance(cycle: L.LatLngExpression[]): number {
-        if (cycle.length < 2) return 0;
-
-        const totalMeters = cycle.slice(1).reduce((sum, to, idx) => {
-            const from = cycle[idx] as [number, number];
-            const [lat1, lon1] = from;
-            const [lat2, lon2] = to as [number, number];
-            return sum + Graph.calculateDistance(lat1, lon1, lat2, lon2);
-        }, 0);
-
-        return totalMeters / 1000; // Convert to km
-    }
-
-    // Order cycles by total distance (ascending)
-    private sortCyclesByDistance(cycles: L.LatLngExpression[][]): L.LatLngExpression[][] {
-        const withDistances = cycles.map(cycle => ({
-            cycle,
-            distance: this.calculateCycleDistance(cycle)
-        }));
-
-        withDistances.sort((a, b) => a.distance - b.distance);
-
-        return withDistances.map(item => item.cycle);
+        // const polyline = L.polyline(visitedNodeIds, {
+        //     color: 'red',
+        //     weight: 6,
+        //     opacity: 0.9,
+        // }).addTo(this.map);
     }
 
     private addMarker(latLng: LatLng): void {

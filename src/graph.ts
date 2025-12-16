@@ -1,7 +1,8 @@
 import type {Coordinate} from "@/types/map_types";
 import type {OSMNode, OSMWay} from "@/types/osm_types";
 import type {GraphEdge, GraphNode, PriorityQueueItem} from "@/types/graph_types";
-import {depthFirstSearch} from "dfs";
+import {depthFirstSearch} from "./dfs";
+import {depthFirstSearchWithStack} from "./dfs-iterative";
 import L from "leaflet";
 
 export class Graph {
@@ -256,19 +257,19 @@ export class Graph {
      * @param {string} nodeId - The ID of the node to start searching from.
      * @return {{cycles: L.LatLngExpression[][] | null, traversalOrder: Map<string, number>}} An object with cycles and traversal order.
      */
-    public findCycles(nodeId: string): {
-        cycles: L.LatLngExpression[][] | null,
-        traversalOrder: Map<string, number>
-    } {
-        const {cycles, traversalOrder} = depthFirstSearch(nodeId, this.adjacencyList);
-
-        if (cycles.length === 0) {
-            console.log("No cycles found");
-            return {cycles: null, traversalOrder};
-        }
-
-        const cycleCoords = cycles.map((cycle) => this.nodeIdsToCoords(cycle));
-
-        return {cycles: cycleCoords, traversalOrder};
-    }
-}
+//     public findCycles(nodeId: string): {
+//         cycles: L.LatLngExpression[][] | null,
+//         traversalOrder: Map<string, number>
+//     } {
+//         const {cycles, traversalOrder} = depthFirstSearch(nodeId, this.adjacencyList);
+//
+//         if (cycles.length === 0) {
+//             console.log("No cycles found");
+//             return {cycles: null, traversalOrder};
+//         }
+//
+//         const cycleCoords = cycles.map((cycle) => this.nodeIdsToCoords(cycle));
+//
+//         return {cycles: cycleCoords, traversalOrder};
+//     }
+// }

@@ -82,12 +82,12 @@ function depthFirstSearchRecursive(
     const neighbors = adjacencyList.get(currentNodeId) ?? [];
 
     neighbors.forEach((neighborId) => {
-        const cycleFound = currentPath.length > 2 && neighborId === startNodeId
-
-        if (cycleFound) {
-            recordCycle(currentPath, startNodeId, cycles);
-            return;
-        }
+        // const cycleFound = currentPath.length > 2 && neighborId === startNodeId
+        //
+        // if (cycleFound) {
+        //     recordCycle(currentPath, startNodeId, cycles);
+        //     return;
+        // }
         // Continue exploring if neighbor hasn't been visited in current path
         if (!visited.has(neighborId)) {
             visitCounter = depthFirstSearchRecursive(
