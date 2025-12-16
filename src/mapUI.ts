@@ -3,6 +3,8 @@ import type {Coordinate, BoundingBox} from "@/types/map_types";
 import type {OSMNode, OSMWay} from "@/types/osm_types";
 import {fetchBoundingBoxNetwork} from "./api";
 import {Graph} from "./graph";
+import type {GraphNode} from "@/types/graph_types";
+import {depthFirstSearchWithStack} from "./dfs-iterative";
 
 export const MAP_PROVIDER = {
     name: "OpenTopoMap",
