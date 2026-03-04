@@ -1,7 +1,7 @@
 import type { BoundingBox } from "@/types/map_types";
 import type { OSMNode, OSMWay, OverpassResponse } from "@/types/osm_types";
 
-const OVERPASS_API_URL = "https://overpass-api.de/api/interpreter";
+const OVERPASS_API_URL = "https://overpass.kumi.systems/api/interpreter";
 
 export async function fetchBoundingBoxNetwork(
   bounding_box: BoundingBox
