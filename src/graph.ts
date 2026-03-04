@@ -345,8 +345,259 @@ export class Graph {
     }
 
     /**
-     * Performs a depth-first search starting from a given node to find all cycles in the graph.
-     * Only returns paths that form complete cycles (end node connects back to start node).
+     * Builds the fundamental cycle when a back edge is detected during DFS.
+     *
+     * When a back edge is found (from `node` to `backNeighbour`), this reconstructs
+     * the cycle by walking up the parent pointers until they meet at a common ancestor.
+     *
+     * @param node - The current node where the back edge originates
+     * @param backNeighbor - The already-visited neighbour that creates the back edge
+     * @param parentMap - Map of node IDs to their parent node IDs in the DFS spanning tree
+     * @returns An array of node IDs forming the detected cycle
+     */
+    private buildCycleFromBackEdge(
+        node: string,
+        backNeighbor: string,
+        parentMap: Map<string, string | null>
+    ): string[] {
+        // Walk up from node to root, building the path
+        const pathFromNode: string[] = [];
+        let current: string | null = node;
+        while (current !== null) {
+            pathFromNode.push(current);
+            current = parentMap.get(current) ?? null;
+        }
+
+        const pathSet = new Set(pathFromNode);
+
+        // Walk up from backNeighbour until we hit a node in the first path
+        const pathFromBackNeighbour: string[] = [];
+        current = backNeighbor;
+        while (current !== null && !pathSet.has(current)) {
+            pathFromBackNeighbour.push(current);
+            current = parentMap.get(current) ?? null;
+        }
+
+        // current is now the common ancestor (join node)
+        const joinNode = current!;
+        const joinIndex = pathFromNode.indexOf(joinNode);
+
+        // Build cycle: from node to join node (reversed) + from backNeighbour to join node
+        const cycle = pathFromNode.slice(0, joinIndex + 1).reverse().concat(pathFromBackNeighbour);
+
+        return cycle;
+    }
+
+    /**
+     * Builds a list of starting nodes for DFS traversal, prioritising intersections.
+     *
+     * Intersections (nodes with 3+ neighbours) are placed first in the list, followed
+     * by all other nodes. This ordering helps find cycles more efficiently by starting
+     * from the most connected parts of the graph.
+     *
+     * @returns An array of all node IDs, with intersections first
+     */
+    private buildDFSStartingPoints(): string[] {
+        const startingPoints: string[] = [];
+
+        // Add intersections first (nodes with 3+ neighbours)
+        for (const [node, neighbours] of this.adjacencyList.entries()) {
+            if (neighbours.length >= 3) {
+                startingPoints.push(node);
+            }
+        }
+
+        // Add remaining nodes
+        for (const node of this.adjacencyList.keys()) {
+            if (!startingPoints.includes(node)) {
+                startingPoints.push(node);
+            }
+        }
+
+        return startingPoints;
+    }
+
+    /**
+     * Handles tree edge: visiting an unvisited neighbour.
+     *
+     * Updates the DFS state by:
+     * - Setting the parent of the neighbour in the spanning tree
+     * - Marking the neighbour as visited
+     * - Recording the visit order in traversalOrder
+     *
+     * @param neighbour - The unvisited neighbour node ID
+     * @param currentNode - The current node ID we're exploring from
+     * @param visited - Set of visited node IDs (will be mutated)
+     * @param parentMap - Map tracking parent relationships in DFS tree (will be mutated)
+     * @param traversalOrder - Map of node IDs to visit order (will be mutated)
+     * @param visitCounter - Counter object tracking visit order (will be mutated)
+     * @returns A new stack frame to continue DFS exploration from the neighbour
+     */
+    private visitUnvisitedNeighbour(
+        neighbour: string,
+        currentNode: string,
+        visited: Set<string>,
+        parentMap: Map<string, string | null>,
+        traversalOrder: Map<string, number>,
+        visitCounter: { value: number }
+    ): { node: string; neighbours: string[]; neighbourIndex: number } {
+        parentMap.set(neighbour, currentNode);
+        visited.add(neighbour);
+        if (!traversalOrder.has(neighbour)) {
+            traversalOrder.set(neighbour, visitCounter.value++);
+        }
+
+        return {
+            node: neighbour,
+            neighbours: this.adjacencyList.get(neighbour) ?? [],
+            neighbourIndex: 0
+        };
+    }
+
+    /**
+     * Handles back edge: detecting a cycle.
+     *
+     * Checks if the neighbour is the parent (which would just be the edge we came from),
+     * and if not, reconstructs and records the cycle.
+     *
+     * @param neighbour - The already-visited neighbour node ID
+     * @param currentNode - The current node ID
+     * @param parentMap - Map of node IDs to their parent node IDs in the DFS spanning tree
+     * @param cycles - Array to store detected cycles (will be mutated if cycle found)
+     * @returns True if a cycle was detected and recorded, false if it was just a parent edge
+     */
+    private detectCycle(
+        neighbour: string,
+        currentNode: string,
+        parentMap: Map<string, string | null>,
+        cycles: string[][]
+    ): boolean {
+        const isParentEdge = parentMap.get(currentNode) === neighbour;
+        if (isParentEdge) {
+            return false;
+        }
+
+        const cycle = this.buildCycleFromBackEdge(currentNode, neighbour, parentMap);
+        cycles.push(cycle);
+        return true;
+    }
+
+    /**
+     * Processes a single neighbour during DFS traversal.
+     *
+     * Dispatches to either visitUnvisitedNeighbour (for tree edges) or
+     * detectCycle (for back edges) based on whether the neighbour has been visited.
+     *
+     * @param neighbour - The neighbour node ID to process
+     * @param currentNode - The current node ID
+     * @param visited - Set of visited node IDs
+     * @param parentMap - Map of node IDs to their parent node IDs in the DFS spanning tree
+     * @param traversalOrder - Map of node IDs to visit order
+     * @param visitCounter - Counter object tracking visit order
+     * @param cycles - Array to store detected cycles
+     * @returns A new stack frame if exploring an unvisited neighbour, null otherwise
+     */
+    private processNeighbour(
+        neighbour: string,
+        currentNode: string,
+        visited: Set<string>,
+        parentMap: Map<string, string | null>,
+        traversalOrder: Map<string, number>,
+        visitCounter: { value: number },
+        cycles: string[][]
+    ): { node: string; neighbours: string[]; neighbourIndex: number } | null {
+        if (!visited.has(neighbour)) {
+            return this.visitUnvisitedNeighbour(neighbour, currentNode, visited, parentMap, traversalOrder, visitCounter);
+        }
+
+        this.detectCycle(neighbour, currentNode, parentMap, cycles);
+        return null;
+    }
+
+    /**
+     * Performs an iterative depth-first search to find all cycles in the entire graph.
+     *
+     * Uses a manual stack to avoid recursion limits. Traverses all nodes starting from
+     * intersections (nodes with 3+ neighbours) first, then remaining nodes. Detects cycles
+     * by finding back edges (edges to already-visited nodes that aren't the parent).
+     *
+     * Internal data structures:
+     * - `cycles`: Array of cycles, where each cycle is an array of node IDs forming a loop
+     * - `visited`: Set of node IDs that have been visited across all DFS runs
+     * - `parentMap`: Map from node ID to its parent node ID in the DFS spanning tree (null for roots)
+     * - `traversalOrder`: Map from node ID to visit order number (0, 1, 2, ...)
+     *
+     * @returns An object containing:
+     *   - `cycles`: All detected cycles as arrays of node IDs
+     *   - `traversalOrder`: Map of node IDs to their visit order
+     */
+    private depthFirstSearchIterative(): {
+        cycles: string[][],
+        traversalOrder: Map<string, number>
+    } {
+        type StackFrame = {
+            node: string;
+            neighbours: string[];
+            neighbourIndex: number;
+        };
+
+        const cycles: string[][] = [];
+        const visited = new Set<string>();
+        const parentMap = new Map<string, string | null>();
+        const traversalOrder = new Map<string, number>();
+        const visitCounter = { value: 0 };
+
+        const startingPoints = this.buildDFSStartingPoints();
+
+        for (const startNodeId of startingPoints) {
+            if (visited.has(startNodeId)) continue;
+
+            const stack: StackFrame[] = [{
+                node: startNodeId,
+                neighbours: this.adjacencyList.get(startNodeId) ?? [],
+                neighbourIndex: 0
+            }];
+
+            visited.add(startNodeId);
+            if (!traversalOrder.has(startNodeId)) {
+                traversalOrder.set(startNodeId, visitCounter.value++);
+            }
+
+            while (stack.length > 0) {
+                const frame = stack[stack.length - 1]!;
+
+                const allNeighboursProcessed = frame.neighbourIndex >= frame.neighbours.length;
+                if (allNeighboursProcessed) {
+                    stack.pop();
+                    continue;
+                }
+
+                const neighbour = frame.neighbours[frame.neighbourIndex];
+                frame.neighbourIndex++;
+
+                const newFrame = this.processNeighbour(
+                    neighbour,
+                    frame.node,
+                    visited,
+                    parentMap,
+                    traversalOrder,
+                    visitCounter,
+                    cycles
+                );
+
+                if (newFrame) {
+                    stack.push(newFrame);
+                }
+            }
+        }
+
+        console.log(`DFS completed: visited ${traversalOrder.size} nodes, found ${cycles.length} cycles`);
+
+        return {cycles, traversalOrder};
+    }
+
+    /**
+     * Performs a depth-first search to find all cycles in the graph.
      *
      * ASCII Diagram:
      *     A ----> B
@@ -356,25 +607,18 @@ export class Graph {
      *
      * Starting from A: visits A -> B -> C -> D -> A (cycle found!)
      *
-     * @param {string} startNodeId - The ID of the node to start the search from.
-     * @param {number} maxDepth - Maximum depth to explore (prevents infinite recursion).
+     * @param {string} startNodeId - Unused parameter (kept for backwards compatibility)
+     * @param {number} maxDepth - Unused parameter (kept for backwards compatibility)
      * @return {{cycles: string[][], traversalOrder: Map<string, number>}} An object with cycles and traversal order.
      */
     private depthFirstSearch(startNodeId: string, maxDepth: number = 600): {
         cycles: string[][],
         traversalOrder: Map<string, number>
     } {
-        const cycles: string[][] = [];
-        const visited = new Set<string>();
-        const currentPath: string[] = [];
-        const traversalOrder = new Map<string, number>();
-        let visitCounter = 0;
-
         console.log(`Starting DFS from node ${startNodeId} with maxDepth ${maxDepth}`);
 
-        this.depthFirstSearchRecursive(startNodeId, startNodeId, visited, currentPath, cycles, maxDepth, traversalOrder, visitCounter);
-
-        console.log(`DFS completed: visited ${traversalOrder.size} nodes, found ${cycles.length} cycles`);
+        const {cycles, traversalOrder} = this.depthFirstSearchIterative();
+        
 
         // Deduplicate cycles that are the same up to rotation and direction
         const uniqueCycles = this.removeDuplicateCycles(cycles);
