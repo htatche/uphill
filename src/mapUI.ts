@@ -240,11 +240,6 @@ export class MapUI {
                     this.cyclePolylines.set(index, polyline);
 
                     if (!this.lastCycles || this.lastCycles.length === 0 || !diffPanel) return;
-                    const a = this.lastCycles[index];
-                    const b = this.lastCycles[(index + 1) % this.lastCycles.length];
-                    const html = this.buildCycleDiffHtml(a, b, index, (index + 1) % this.lastCycles.length);
-                    diffPanel.innerHTML = html;
-                    diffPanel.classList.add('visible');
                 });
 
                 cyclesContainer.appendChild(cycleItem);
@@ -252,50 +247,6 @@ export class MapUI {
 
             if (cyclesList) cyclesList.classList.add('visible');
         }
-    }
-
-    // Convert a LatLngExpression to a compact string for comparison
-    private coordKey(exp: L.LatLngExpression): string {
-        const [lat, lon] = exp as [number, number];
-        return `${lat.toFixed(5)},${lon.toFixed(5)}`;
-    }
-
-    private buildCycleDiffHtml(a: L.LatLngExpression[], b: L.LatLngExpression[], idxA: number, idxB: number): string {
-        const aKeys = a.map(x => this.coordKey(x));
-        const bKeys = b.map(x => this.coordKey(x));
-
-        // index-by-index mismatches (up to min length)
-        const minLen = Math.min(aKeys.length, bKeys.length);
-        const mismatches: {i:number, a?:string, b?:string}[] = [];
-        for (let i = 0; i < minLen; i++) {
-            if (aKeys[i] !== bKeys[i]) {
-                mismatches.push({i, a: aKeys[i], b: bKeys[i]});
-            }
-        }
-        // Unique elements
-        const setA = new Set(aKeys);
-        const setB = new Set(bKeys);
-        const onlyA: string[] = [];
-        const onlyB: string[] = [];
-        setA.forEach(k => { if (!setB.has(k)) onlyA.push(k); });
-        setB.forEach(k => { if (!setA.has(k)) onlyB.push(k); });
-        const commonCount = aKeys.filter(k => setB.has(k)).length;
-
-        const previewLen = 8;
-        const previewA = aKeys.slice(0, previewLen).join(' -> ');
-        const previewB = bKeys.slice(0, previewLen).join(' -> ');
-
-        const mismatchPreview = mismatches.slice(0, 6).map(m => `#${m.i}: <code>${m.a}</code> vs <code>${m.b}</code>`).join('<br/>');
-
-        return `
-            <h4>Traversal diff: Cycle ${idxA + 1} vs Cycle ${idxB + 1}</h4>
-            <div class="diff-section">Lengths: A=${aKeys.length}, B=${bKeys.length} | Common points: ${commonCount}</div>
-            <div class="diff-section">Only in A (${onlyA.length}): ${onlyA.slice(0,6).map(x=>`<code>${x}</code>`).join(', ')}${onlyA.length>6?' …':''}</div>
-            <div class="diff-section">Only in B (${onlyB.length}): ${onlyB.slice(0,6).map(x=>`<code>${x}</code>`).join(', ')}${onlyB.length>6?' …':''}</div>
-            <div class="diff-section">Index mismatches (${mismatches.length}):<br/>${mismatchPreview || '—'}</div>
-            <div class="diff-section">Preview A: <code>${previewA}${aKeys.length>previewLen?' …':''}</code></div>
-            <div class="diff-section">Preview B: <code>${previewB}${bKeys.length>previewLen?' …':''}</code></div>
-        `;
     }
 
     private calculateCycleDistance(cycle: L.LatLngExpression[]): number {
@@ -351,9 +302,5 @@ export class MapUI {
             this.addMarker(e.latlng);
             await this.traceLoopPath({lat: e.latlng.lat, lng: e.latlng.lng});
         }
-    }
-
-    public destroy() {
-        this.abortController.abort();
     }
 }
