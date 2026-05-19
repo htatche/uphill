@@ -42,10 +42,9 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
 
-     // map @/something to src/something
-    "baseUrl": "./src",
+    // map @/something to src/something
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["./src/*"]
     }
   }
 }

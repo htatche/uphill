@@ -15,3 +15,12 @@ Generate paths from trail networks
 
 - The map is provided by OpenTopoMap and the trails network by Overpass
 - DFS and Dikjstra are used to both explore the network and find the shortest path between the two waypoints
+
+## Local development
+
+```sh
+# Install deps
+npm ci
+# Run
+npm run dev
+```

@@ -110,11 +110,14 @@ export class Graph {
             from: fromId,
             to: toId,
             weight: distance,
-            wayId,
             distance,
             elevationGain: 0, // TODO: calculate from elevation data
             difficulty: 1, // Default difficulty
         };
+
+        if (wayId !== undefined) {
+            edge.wayId = wayId;
+        }
 
         this.edges.set(edgeId, edge);
         this.adjacencyList.get(fromId)?.push(toId);
@@ -149,8 +152,8 @@ export class Graph {
 
             // Create edges between consecutive nodes in the way
             for (let i = 0; i < wayNodes.length - 1; i++) {
-                const fromNode = wayNodes[i];
-                const toNode = wayNodes[i + 1];
+                const fromNode = wayNodes[i]!;
+                const toNode = wayNodes[i + 1]!;
                 const fromId = fromNode.id.toString();
                 const toId = toNode.id.toString();
 
@@ -572,7 +575,7 @@ export class Graph {
                     continue;
                 }
 
-                const neighbour = frame.neighbours[frame.neighbourIndex];
+                const neighbour = frame.neighbours[frame.neighbourIndex]!;
                 frame.neighbourIndex++;
 
                 const newFrame = this.processNeighbour(
