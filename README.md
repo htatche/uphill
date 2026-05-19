@@ -4,7 +4,7 @@
 
 Generate paths from trail networks
 
-![screenrecording.gif](screenrecording.gif)
+![screenrecording.gif](assets/screenrecording.gif)
 
 ## Current functionality
 

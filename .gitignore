@@ -14,7 +14,10 @@ build/
 .env.production.local
 
 # IDE and editor files
-.vscode/
+.idea/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 
 # OS generated files
 .DS_Store
