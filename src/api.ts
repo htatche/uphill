@@ -7,6 +7,30 @@ const BROWSER_REQUEST_TIMEOUT_MS = (OVERPASS_QUERY_TIMEOUT_SECONDS + 5) * 1000;
 const MAX_REQUEST_ATTEMPTS = 3;
 
 type TrailNetwork = { nodes: OSMNode[]; ways: OSMWay[] };
+type FetchStatus = "loading" | "success" | "retry" | "error";
+
+let statusHideTimeoutId: number | undefined;
+
+function updateQueryStatus(message: string, status: FetchStatus): void {
+  const statusElement = document.getElementById("loading-status");
+  const messageElement = document.getElementById("loading-status-message");
+
+  if (!statusElement || !messageElement) return;
+
+  window.clearTimeout(statusHideTimeoutId);
+
+  messageElement.textContent = message;
+  statusElement.classList.add("visible");
+  statusElement.classList.toggle("status-error", status === "error");
+  statusElement.classList.toggle("status-success", status === "success");
+
+  if (status === "success" || status === "error") {
+    statusHideTimeoutId = window.setTimeout(() => {
+      statusElement.classList.remove("visible", "status-error", "status-success");
+      messageElement.textContent = "";
+    }, 2500);
+  }
+}
 
 function buildNetworkQuery(bounding_box: BoundingBox): string {
   const coords = [
@@ -78,22 +102,29 @@ async function fetchTrailNetworkWithRetries(
 ): Promise<TrailNetwork> {
   for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
     const requestStartedAt = performance.now();
+    const attemptMessage = `Querying Overpass (${attempt}/${MAX_REQUEST_ATTEMPTS})`;
 
     try {
-      console.log(
-        `Querying Overpass (attempt ${attempt}/${MAX_REQUEST_ATTEMPTS}, timeout ${BROWSER_REQUEST_TIMEOUT_MS}ms)`,
-      );
+      console.log(`${attemptMessage}, timeout ${BROWSER_REQUEST_TIMEOUT_MS}ms`);
+      updateQueryStatus(attemptMessage, "loading");
 
-      return await fetchTrailNetworkAttempt(query, requestStartedAt);
+      const trailNetwork = await fetchTrailNetworkAttempt(query, requestStartedAt);
+      updateQueryStatus("Trail network loaded", "success");
+
+      return trailNetwork;
     } catch (error) {
       const elapsedMs = Math.round(performance.now() - requestStartedAt);
+      const hasAttemptsRemaining = attempt < MAX_REQUEST_ATTEMPTS;
 
       console.warn(
         `Overpass request failed (attempt ${attempt}/${MAX_REQUEST_ATTEMPTS}, ${elapsedMs}ms):`,
         error,
       );
 
-      if (attempt === MAX_REQUEST_ATTEMPTS) {
+      if (hasAttemptsRemaining) {
+        updateQueryStatus(`Retrying Overpass (${attempt + 1}/${MAX_REQUEST_ATTEMPTS})`, "retry");
+      } else {
+        updateQueryStatus("Trail network request failed", "error");
         console.error("Error fetching trail network:", error);
         return { nodes: [], ways: [] };
       }

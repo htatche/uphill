@@ -137,10 +137,67 @@
             padding: 2px 4px;
             border-radius: 3px;
         }
+
+        #loading-status {
+            position: absolute;
+            left: 50%;
+            top: 12px;
+            transform: translateX(-50%);
+            display: none;
+            align-items: center;
+            gap: 10px;
+            min-width: 220px;
+            padding: 10px 14px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.96);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            color: #222;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            z-index: 1000;
+        }
+
+        #loading-status.visible {
+            display: flex;
+        }
+
+        #loading-status.status-error {
+            border-left: 4px solid #d93025;
+        }
+
+        #loading-status.status-success {
+            border-left: 4px solid #188038;
+        }
+
+        .loading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #c7c7c7;
+            border-top-color: #333;
+            border-radius: 50%;
+            animation: loading-spin 0.8s linear infinite;
+            flex: 0 0 auto;
+        }
+
+        #loading-status.status-error .loading-spinner,
+        #loading-status.status-success .loading-spinner {
+            display: none;
+        }
+
+        @keyframes loading-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
+    <div id="loading-status" role="status" aria-live="polite">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <span id="loading-status-message"></span>
+    </div>
 
     <div id="cycles-list">
         <h3>Found Cycles</h3>
@@ -156,7 +213,7 @@
         </label>
         <label>
             <input type="radio" name="mode" value="auto">
-            Explore path automatically
+            Find loop paths in the vecinity
         </label>
     </div>
 
