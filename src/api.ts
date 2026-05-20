@@ -3,58 +3,10 @@ import type { OSMNode, OSMWay, OverpassResponse } from "@/types/osm_types";
 
 const OVERPASS_API_URL = "https://overpass.kumi.systems/api/interpreter";
 const OVERPASS_QUERY_TIMEOUT_SECONDS = 25;
-const REQUEST_TIMEOUT_MS = (OVERPASS_QUERY_TIMEOUT_SECONDS + 5) * 1000;
+const BROWSER_REQUEST_TIMEOUT_MS = (OVERPASS_QUERY_TIMEOUT_SECONDS + 5) * 1000;
+const MAX_REQUEST_ATTEMPTS = 3;
 
-async function fetchOverpass(query: string): Promise<OverpassResponse> {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(OVERPASS_API_URL, {
-      method: "POST",
-      body: query,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const message = await response.text();
-      const details = message || response.statusText;
-      throw new Error(
-        `Overpass API returned ${response.status}: ${details.slice(0, 300).trim()}`
-      );
-    }
-
-    return await response.json() as OverpassResponse;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-export async function fetchBoundingBoxNetwork(
-  bounding_box: BoundingBox
-): Promise<{ nodes: OSMNode[]; ways: OSMWay[] }> {
-  const query = buildNetworkQuery(bounding_box);
-
-  console.log(`Generated Overpass query: ${query}`);
-  console.log("Fetching trail network in bounding box:", bounding_box);
-
-  try {
-    const requestStartedAt = performance.now();
-    const data = await fetchOverpass(query);
-    const elapsedMs = Math.round(performance.now() - requestStartedAt);
-    const nodes = data.elements.filter(
-      (el): el is OSMNode => el.type === "node"
-    );
-    const ways = data.elements.filter((el): el is OSMWay => el.type === "way");
-
-    console.log(`Fetched ${nodes.length} nodes and ${ways.length} ways in ${elapsedMs}ms`);
-
-    return { nodes, ways };
-  } catch (error) {
-    console.error("Error fetching trail network:", error);
-    return { nodes: [], ways: [] };
-  }
-}
+type TrailNetwork = { nodes: OSMNode[]; ways: OSMWay[] };
 
 function buildNetworkQuery(bounding_box: BoundingBox): string {
   const coords = [
@@ -75,4 +27,89 @@ function buildNetworkQuery(bounding_box: BoundingBox): string {
     >;
     out skel qt;
   `;
+}
+
+async function fetchOverpass(query: string): Promise<OverpassResponse> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    BROWSER_REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    const response = await fetch(OVERPASS_API_URL, {
+      method: "POST",
+      body: query,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const message = await response.text();
+      const details = message || response.statusText;
+      throw new Error(
+        `Overpass API returned ${response.status}: ${details.slice(0, 300).trim()}`,
+      );
+    }
+
+    return (await response.json()) as OverpassResponse;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function fetchTrailNetworkAttempt(
+  query: string,
+  requestStartedAt: number,
+): Promise<TrailNetwork> {
+  const data = await fetchOverpass(query);
+  const elapsedMs = Math.round(performance.now() - requestStartedAt);
+  const nodes = data.elements.filter((el): el is OSMNode => el.type === "node");
+  const ways = data.elements.filter((el): el is OSMWay => el.type === "way");
+
+  console.log(
+    `Fetched ${nodes.length} nodes and ${ways.length} ways in ${elapsedMs}ms`,
+  );
+
+  return { nodes, ways };
+}
+
+async function fetchTrailNetworkWithRetries(
+  query: string,
+): Promise<TrailNetwork> {
+  for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
+    const requestStartedAt = performance.now();
+
+    try {
+      console.log(
+        `Querying Overpass (attempt ${attempt}/${MAX_REQUEST_ATTEMPTS}, timeout ${BROWSER_REQUEST_TIMEOUT_MS}ms)`,
+      );
+
+      return await fetchTrailNetworkAttempt(query, requestStartedAt);
+    } catch (error) {
+      const elapsedMs = Math.round(performance.now() - requestStartedAt);
+
+      console.warn(
+        `Overpass request failed (attempt ${attempt}/${MAX_REQUEST_ATTEMPTS}, ${elapsedMs}ms):`,
+        error,
+      );
+
+      if (attempt === MAX_REQUEST_ATTEMPTS) {
+        console.error("Error fetching trail network:", error);
+        return { nodes: [], ways: [] };
+      }
+    }
+  }
+
+  return { nodes: [], ways: [] };
+}
+
+export async function fetchBoundingBoxNetwork(
+  bounding_box: BoundingBox,
+): Promise<TrailNetwork> {
+  const query = buildNetworkQuery(bounding_box);
+
+  console.log(`Generated Overpass query: ${query}`);
+  console.log("Fetching trail network in bounding box:", bounding_box);
+
+  return fetchTrailNetworkWithRetries(query);
 }
