@@ -2,6 +2,7 @@ import type { BoundingBox } from "@/types/map_types";
 import type { OSMNode, OSMWay, OverpassResponse } from "@/types/osm_types";
 
 const OVERPASS_API_URL = "https://overpass.kumi.systems/api/interpreter";
+const OVERPASS_QUERY_TIMEOUT_SECONDS = 25;
 
 export async function fetchBoundingBoxNetwork(
   bounding_box: BoundingBox
@@ -47,18 +48,13 @@ function buildNetworkQuery(bounding_box: BoundingBox): string {
   ].join(",");
 
   return `
-    [out:json];
+    [out:json][timeout:${OVERPASS_QUERY_TIMEOUT_SECONDS}];
     (
-      way["highway"="path"](${coords});
-      way["highway"="footway"](${coords});
-      way["highway"="track"](${coords});
-      way["highway"="cycleway"](${coords});
-      way["highway"="bridleway"](${coords});
-      way["route"="hiking"](${coords});
-      way["route"="foot"](${coords});
+      way["highway"~"^(path|footway|track|cycleway|bridleway)$"](${coords});
+      way["route"~"^(hiking|foot)$"](${coords});
       way["sac_scale"](${coords});
     );
-    out body;
+    out body qt;
     >;
     out skel qt;
   `;
