@@ -101,6 +101,11 @@ export class AutoExploreFeature {
             `;
 
             cycleItem.addEventListener("click", () => {
+                cyclesContainer.querySelectorAll(".cycle-item").forEach((item) => {
+                    item.classList.remove("selected");
+                });
+                cycleItem.classList.add("selected");
+
                 this.cyclePolylines.forEach((polyline) => polyline.remove());
                 this.cyclePolylines.clear();
 
@@ -144,7 +149,7 @@ export class AutoExploreFeature {
             (item) => item.distance >= MIN_LOOP_DISTANCE_KM
         );
 
-        eligibleCycles.sort((a, b) => a.distance - b.distance);
+        eligibleCycles.sort((a, b) => b.distance - a.distance);
 
         return eligibleCycles.map((item) => item.cycle);
     }
