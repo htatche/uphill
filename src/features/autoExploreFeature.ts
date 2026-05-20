@@ -4,6 +4,8 @@ import {Graph} from "@/graph";
 import type {Coordinate} from "@/types/map_types";
 import type {SharedMapActions} from "@/features/mapActions";
 
+const MIN_LOOP_DISTANCE_KM = 5;
+
 interface AutoExploreDeps extends SharedMapActions {
     map: L.Map;
 }
@@ -56,7 +58,13 @@ export class AutoExploreFeature {
 
         if (!cycles || cycles.length === 0) return;
 
-        const sortedCycles = this.sortCyclesByDistance(cycles);
+        const sortedCycles = this.filterAndSortCyclesByDistance(cycles);
+
+        if (sortedCycles.length === 0) {
+            console.log(`No cycles found at or above ${MIN_LOOP_DISTANCE_KM} km`);
+            return;
+        }
+
         this.lastCycles = sortedCycles;
         this.renderCyclesList(sortedCycles);
     }
@@ -126,14 +134,18 @@ export class AutoExploreFeature {
         return totalMeters / 1000;
     }
 
-    private sortCyclesByDistance(cycles: L.LatLngExpression[][]): L.LatLngExpression[][] {
+    private filterAndSortCyclesByDistance(cycles: L.LatLngExpression[][]): L.LatLngExpression[][] {
         const withDistances = cycles.map((cycle) => ({
             cycle,
             distance: this.calculateCycleDistance(cycle),
         }));
 
-        withDistances.sort((a, b) => a.distance - b.distance);
+        const eligibleCycles = withDistances.filter(
+            (item) => item.distance >= MIN_LOOP_DISTANCE_KM
+        );
 
-        return withDistances.map((item) => item.cycle);
+        eligibleCycles.sort((a, b) => a.distance - b.distance);
+
+        return eligibleCycles.map((item) => item.cycle);
     }
 }
